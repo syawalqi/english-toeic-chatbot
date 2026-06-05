@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asisten Akademik UMY</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        #msg-box { scroll-behavior: smooth; }
+        #msg-box > div:last-child { animation: in 0.2s ease; }
+        @keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .td { width: 7px; height: 7px; border-radius: 50%; background: #9ca3af; animation: b 1.2s infinite; }
+        .td:nth-child(2) { animation-delay: .15s; }
+        .td:nth-child(3) { animation-delay: .3s; }
+        @keyframes b { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+        @media (max-width: 640px) { .app { height: 100vh !important; border-radius: 0 !important; } }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex items-center justify-center font-sans" x-data="app()" x-init="init()">
+    <div class="app w-full max-w-xl h-[90vh] bg-white shadow rounded-2xl flex flex-col overflow-hidden">
+
+        <!-- HEADER -->
+        <div class="bg-gradient-to-r from-blue-700 to-blue-600 px-4 py-3 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">🎓</span>
+                <div>
+                    <div class="text-white font-semibold text-sm">Asisten Akademik UMY</div>
+                    <div class="text-blue-200 text-[10px]">AI Terapan 2026</div>
+                </div>
+            </div>
+            <button @click="reset()" class="text-xs text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors">+ Baru</button>
+        </div>
+
+        <!-- MESSAGES -->
+        <div id="msg-box" class="flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-gray-50/50" x-ref="msgs">
+            <template x-for="(m, i) in msgs" :key="i">
+                <div :class="'flex items-start gap-2 ' + (m.role === 'user' ? 'justify-end' : '')">
+                    <template x-if="m.role === 'assistant'">
+                        <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs shrink-0">🤖</div>
+                    </template>
+                    <div :class="'rounded-xl px-3.5 py-2.5 max-w-[82%] ' + (m.role === 'user' ? 'bg-blue-700 text-white rounded-tr-sm' : 'bg-white text-gray-700 shadow-sm rounded-tl-sm')">
+                        <template x-if="m.tools && m.tools.length">
+                            <div class="flex flex-wrap gap-1 mb-1">
+                                <template x-for="t in m.tools" :key="t.function?.name">
+                                    <span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded" x-text="'🔧 '+ (t.function?.name || 'tool')"></span>
+                                </template>
+                            </div>
+                        </template>
+                        <div class="text-sm leading-relaxed" x-html="fmt(m.text)"></div>
+                    </div>
+                    <template x-if="m.role === 'user'">
+                        <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs text-white shrink-0 font-bold">G</div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- TYPING -->
+        <div x-show="typing" class="px-4 py-2 bg-gray-50 border-t border-gray-100 shrink-0" x-cloak>
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs shrink-0">🤖</div>
+                <div class="flex gap-1"><span class="td"></span><span class="td"></span><span class="td"></span></div>
+            </div>
+        </div>
+
+        <!-- INPUT -->
+        <div class="border-t border-gray-200 bg-white px-3 py-2 shrink-0">
+            <form @submit.prevent="send()" class="flex gap-2">
+                <input type="text" x-model="input"
+                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="Ketik pesan..." autocomplete="off">
+                <button type="submit" :disabled="!input.trim() || busy"
+                    class="bg-blue-700 hover:bg-blue-600 text-white rounded-lg px-5 py-2.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    Kirim
+                </button>
+            </form>
+            <div class="text-[9px] text-gray-400 text-center mt-1">DeepSeek V4 Flash</div>
+        </div>
+    </div>
+
+    <script>
+    function app() {
+        return {
+            input: '',
+            msgs: [],
+            typing: false,
+            busy: false,
+            sid: '',
+
+            init() {
+                this.sid = localStorage.getItem('sid') || '';
+                if (!this.sid) {
+                    this.sid = crypto.randomUUID();
+                    localStorage.setItem('sid', this.sid);
+                }
+                // Load history from server
+                this.loadHistory();
+            },
+
+            async loadHistory() {
+                try {
+                    var res = await fetch('/api/history?session_id=' + this.sid);
+                    var data = await res.json();
+                    if (data.messages && data.messages.length > 0) {
+                        this.msgs = data.messages;
+                    } else {
+                        this.msgs.push({
+                            role: 'assistant',
+                            text: 'Halo! Saya asisten akademik UMY 👋<br><br>Saya bisa bantu kelola <b>jadwal kuliah</b>, <b>tugas</b>, dan <b>info akademik</b>.<br><br><span class="text-gray-400 italic">Coba: "Jadwal hari ini" atau "Tugas yang belum"</span>',
+                            tools: []
+                        });
+                    }
+                } catch(e) {
+                    this.msgs.push({
+                        role: 'assistant',
+                        text: 'Halo! Saya asisten akademik UMY 👋',
+                        tools: []
+                    });
+                }
+                this.$nextTick(() => this.scroll());
+            },
+
+            scroll() {
+                this.$nextTick(() => {
+                    var box = this.$refs.msgs;
+                    if (box) box.scrollTop = box.scrollHeight;
+                });
+            },
+
+            // Markdown render (safe: escaped -sanitized via marked)
+            fmt(s) {
+                if (!s) return '';
+                // marked with gfm: true for tables, lists, etc
+                return marked.parse(s, { gfm: true, breaks: true });
+            },
+
+            async send() {
+                var msg = this.input.trim();
+                if (!msg || this.busy) return;
+
+                this.input = '';
+                this.msgs.push({ role: 'user', text: msg, tools: [] });
+                this.typing = true;
+                this.busy = true;
+                this.scroll();
+
+                try {
+                    var res = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: msg, session_id: this.sid })
+                    });
+                    var data = await res.json();
+
+                    var tools = data.tool_calls || [];
+                    var resp = data.response || '⚠️ Maaf, tidak ada respons.';
+
+                    this.msgs.push({ role: 'assistant', text: resp, tools: tools });
+                } catch(e) {
+                    this.msgs.push({ role: 'assistant', text: '⚠️ Gagal terhubung ke server.', tools: [] });
+                }
+
+                this.typing = false;
+                this.busy = false;
+                this.scroll();
+            },
+
+            reset() {
+                if (this.busy) return;
+                fetch('/api/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: this.sid })
+                }).then(r => r.json()).then(d => {
+                    this.sid = d.session_id;
+                    localStorage.setItem('sid', this.sid);
+                }).catch(() => {
+                    this.sid = crypto.randomUUID();
+                    localStorage.setItem('sid', this.sid);
+                });
+                this.msgs = [{
+                    role: 'assistant',
+                    text: 'Halo! Saya asisten akademik UMY 👋<br><br>Saya bisa bantu kelola <b>jadwal kuliah</b>, <b>tugas</b>, dan <b>info akademik</b>.<br><br><span class="text-gray-400 italic">Coba: "Jadwal hari ini" atau "Tugas yang belum"</span>',
+                    tools: []
+                }];
+                this.scroll();
+            }
+        };
+    }
+    </script>
+</body>
+</html>
