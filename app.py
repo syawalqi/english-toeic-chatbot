@@ -8,7 +8,7 @@ import uuid
 import random
 from datetime import datetime
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -969,6 +969,111 @@ def get_test_result(test_id):
         'total': attempt_row['total_questions'] if attempt_row else len(questions),
         'completed_at': attempt_row['completed_at'] if attempt_row else None
     })
+
+
+# ── Admin ─────────────────────────────────────────────────────────
+
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
+
+
+def require_admin():
+    if not session.get('admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+
+@app.route('/admin/login', methods=['POST'])
+def admin_login():
+    data = request.json or {}
+    if data.get('password') == ADMIN_PASSWORD:
+        session['admin'] = True
+        return jsonify({'success': True})
+    return jsonify({'error': 'Wrong password'}), 401
+
+
+@app.route('/api/admin/stats')
+def admin_stats():
+    r = require_admin()
+    if r:
+        return r
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM students")
+    students_count = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM test_attempts")
+    tests_count = c.fetchone()[0]
+    c.execute("SELECT ROUND(AVG(raw_score), 1) FROM test_attempts")
+    row = c.fetchone()
+    avg_score = row[0] if row[0] else 0
+    c.execute("""SELECT s.name, s.nim, ta.raw_score, ta.total_questions, ta.completed_at
+                 FROM test_attempts ta JOIN students s ON ta.student_id = s.id
+                 ORDER BY ta.completed_at DESC LIMIT 5""")
+    recent = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return jsonify({'students_count': students_count, 'tests_count': tests_count,
+                    'avg_score': avg_score, 'recent': recent})
+
+
+@app.route('/api/admin/students')
+def admin_students():
+    r = require_admin()
+    if r:
+        return r
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""SELECT s.id, s.name, s.nim, s.created_at,
+                        COUNT(ta.id) as tests_taken,
+                        ROUND(AVG(ta.raw_score), 1) as avg_score,
+                        MAX(ta.completed_at) as last_test
+                 FROM students s
+                 LEFT JOIN test_attempts ta ON ta.student_id = s.id
+                 GROUP BY s.id ORDER BY last_test DESC""")
+    students = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return jsonify({'students': students})
+
+
+@app.route('/api/admin/students/<int:student_id>')
+def admin_student_detail(student_id):
+    r = require_admin()
+    if r:
+        return r
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT id, name, nim, created_at FROM students WHERE id=?", (student_id,))
+    student = c.fetchone()
+    if not student:
+        conn.close()
+        return jsonify({'error': 'Student not found'}), 404
+    c.execute("""SELECT ta.id, ta.raw_score, ta.total_questions, ta.completed_at, rt.difficulty
+                 FROM test_attempts ta
+                 JOIN reading_tests rt ON rt.id = ta.test_id
+                 WHERE ta.student_id = ? ORDER BY ta.completed_at DESC""", (student_id,))
+    attempts = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return jsonify({'student': dict(student), 'attempts': attempts})
+
+
+@app.route('/api/admin/attempts')
+def admin_attempts():
+    r = require_admin()
+    if r:
+        return r
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""SELECT ta.id, ta.raw_score, ta.total_questions, ta.completed_at,
+                        s.name, s.nim, rt.difficulty
+                 FROM test_attempts ta
+                 JOIN students s ON s.id = ta.student_id
+                 JOIN reading_tests rt ON rt.id = ta.test_id
+                 ORDER BY ta.completed_at DESC LIMIT 100""")
+    attempts = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return jsonify({'attempts': attempts})
+
+
+@app.route('/admin')
+def admin_page():
+    return render_template('admin.html')
 
 
 # ── Main ────────────────────────────────────────────────────────

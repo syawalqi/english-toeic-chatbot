@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOEIC Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans" x-data="admin()" x-init="init()">
+    <!-- Login Screen -->
+    <div x-show="!loggedIn" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-700 to-blue-900 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full">
+            <div class="text-center mb-6">
+                <div class="text-4xl mb-2">🔒</div>
+                <h1 class="text-xl font-bold text-gray-800">Admin Panel</h1>
+                <p class="text-gray-500 text-sm mt-1">Enter password to continue</p>
+            </div>
+            <form @submit.prevent="login">
+                <input type="password" x-model="password" placeholder="Password"
+                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 mb-3">
+                <div x-show="error" x-text="error" class="text-red-500 text-sm mb-3"></div>
+                <button type="submit" :disabled="loading"
+                    class="w-full bg-blue-700 hover:bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50">
+                    <span x-show="!loading">Login</span>
+                    <span x-show="loading">Checking...</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div x-show="loggedIn" class="max-w-5xl mx-auto p-4 sm:p-6">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl">🔒</span>
+                <h1 class="text-lg font-bold text-gray-800">TOEIC Admin</h1>
+            </div>
+            <button @click="logout()" class="text-sm text-gray-500 hover:text-gray-700">Logout</button>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                <div class="text-2xl font-bold text-gray-800" x-text="stats.students_count">—</div>
+                <div class="text-sm text-gray-500 mt-1">Students</div>
+            </div>
+            <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                <div class="text-2xl font-bold text-gray-800" x-text="stats.tests_count">—</div>
+                <div class="text-sm text-gray-500 mt-1">Tests Taken</div>
+            </div>
+            <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                <div class="text-2xl font-bold text-gray-800" x-text="stats.avg_score + ' / 10'">—</div>
+                <div class="text-sm text-gray-500 mt-1">Average Score</div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-200 bg-white rounded-t-xl">
+            <button @click="tab='students'" :class="tab==='students' ? 'tab-active' : 'text-gray-500'" class="px-5 py-2.5 text-sm font-medium">📋 Students</button>
+            <button @click="tab='attempts'" :class="tab==='attempts' ? 'tab-active' : 'text-gray-500'" class="px-5 py-2.5 text-sm font-medium">📝 All Attempts</button>
+            <button @click="tab='recent'" :class="tab==='recent' ? 'tab-active' : 'text-gray-500'" class="px-5 py-2.5 text-sm font-medium">🕐 Recent</button>
+        </div>
+
+        <!-- Students Tab -->
+        <div x-show="tab==='students'" class="bg-white rounded-b-xl border border-t-0 border-gray-200 overflow-x-auto">
+            <div x-show="!selectedStudent">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+                        <tr>
+                            <th class="text-left px-4 py-3 font-medium">NIM</th>
+                            <th class="text-left px-4 py-3 font-medium">Name</th>
+                            <th class="text-center px-4 py-3 font-medium">Tests</th>
+                            <th class="text-center px-4 py-3 font-medium">Avg Score</th>
+                            <th class="text-right px-4 py-3 font-medium">Last Test</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <template x-for="s in students" :key="s.id">
+                            <tr @click="viewStudent(s.id)" class="hover:bg-blue-50 cursor-pointer transition-colors">
+                                <td class="px-4 py-3 font-mono text-xs" x-text="s.nim"></td>
+                                <td class="px-4 py-3 font-medium text-gray-800" x-text="s.name"></td>
+                                <td class="px-4 py-3 text-center" x-text="s.tests_taken"></td>
+                                <td class="px-4 py-3 text-center font-medium" :class="s.avg_score >= 7 ? 'text-green-600' : s.avg_score >= 5 ? 'text-yellow-600' : 'text-red-600'" x-text="s.avg_score || '—'"></td>
+                                <td class="px-4 py-3 text-right text-gray-400 text-xs" x-text="s.last_test ? new Date(s.last_test).toLocaleDateString() : '—'"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="!loading && students.length === 0">
+                            <td colspan="5" class="text-center text-gray-400 py-8 text-sm">No students yet</td>
+                        </tr>
+                        <tr x-show="loading">
+                            <td colspan="5" class="text-center text-gray-400 py-8 text-sm">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Student Detail -->
+            <div x-show="selectedStudent" class="p-4">
+                <button @click="selectedStudent=null" class="text-sm text-blue-600 hover:text-blue-700 mb-4">&larr; Back to Students</button>
+                <div class="mb-4">
+                    <h2 class="text-lg font-bold text-gray-800" x-text="studentDetail?.student?.name"></h2>
+                    <p class="text-sm text-gray-500" x-text="'NIM: ' + (studentDetail?.student?.nim || '')"></p>
+                </div>
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+                        <tr>
+                            <th class="text-left px-4 py-3 font-medium">Date</th>
+                            <th class="text-center px-4 py-3 font-medium">Difficulty</th>
+                            <th class="text-center px-4 py-3 font-medium">Score</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <template x-for="a in studentDetail?.attempts || []" :key="a.id">
+                            <tr>
+                                <td class="px-4 py-3 text-xs text-gray-500" x-text="new Date(a.completed_at).toLocaleString()"></td>
+                                <td class="px-4 py-3 text-center capitalize" x-text="a.difficulty"></td>
+                                <td class="px-4 py-3 text-center font-medium" :class="a.raw_score >= 7 ? 'text-green-600' : a.raw_score >= 5 ? 'text-yellow-600' : 'text-red-600'" x-text="a.raw_score + '/' + a.total_questions"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Attempts Tab -->
+        <div x-show="tab==='attempts'" class="bg-white rounded-b-xl border border-t-0 border-gray-200 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+                    <tr>
+                        <th class="text-left px-4 py-3 font-medium">Name</th>
+                        <th class="text-left px-4 py-3 font-medium">NIM</th>
+                        <th class="text-center px-4 py-3 font-medium">Difficulty</th>
+                        <th class="text-center px-4 py-3 font-medium">Score</th>
+                        <th class="text-right px-4 py-3 font-medium">Date</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template x-for="a in attempts" :key="a.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-medium text-gray-800" x-text="a.name"></td>
+                            <td class="px-4 py-3 font-mono text-xs" x-text="a.nim"></td>
+                            <td class="px-4 py-3 text-center capitalize" x-text="a.difficulty"></td>
+                            <td class="px-4 py-3 text-center font-medium" :class="a.raw_score >= 7 ? 'text-green-600' : a.raw_score >= 5 ? 'text-yellow-600' : 'text-red-600'" x-text="a.raw_score + '/' + a.total_questions"></td>
+                            <td class="px-4 py-3 text-right text-xs text-gray-400" x-text="new Date(a.completed_at).toLocaleString()"></td>
+                        </tr>
+                    </template>
+                    <tr x-show="!loading && attempts.length === 0">
+                        <td colspan="5" class="text-center text-gray-400 py-8 text-sm">No attempts yet</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Recent Tab -->
+        <div x-show="tab==='recent'" class="bg-white rounded-b-xl border border-t-0 border-gray-200 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+                    <tr>
+                        <th class="text-left px-4 py-3 font-medium">Name</th>
+                        <th class="text-left px-4 py-3 font-medium">NIM</th>
+                        <th class="text-center px-4 py-3 font-medium">Score</th>
+                        <th class="text-right px-4 py-3 font-medium">Date</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template x-for="r in stats.recent || []" :key="r.completed_at">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-medium text-gray-800" x-text="r.name"></td>
+                            <td class="px-4 py-3 font-mono text-xs" x-text="r.nim"></td>
+                            <td class="px-4 py-3 text-center font-medium" :class="r.raw_score >= 7 ? 'text-green-600' : r.raw_score >= 5 ? 'text-yellow-600' : 'text-red-600'" x-text="r.raw_score + '/' + r.total_questions"></td>
+                            <td class="px-4 py-3 text-right text-xs text-gray-400" x-text="new Date(r.completed_at).toLocaleString()"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+    function admin() {
+        return {
+            loggedIn: false,
+            password: '',
+            error: '',
+            loading: false,
+            tab: 'students',
+            stats: { students_count: 0, tests_count: 0, avg_score: 0, recent: [] },
+            students: [],
+            attempts: [],
+            selectedStudent: null,
+            studentDetail: null,
+
+            async init() {
+                try {
+                    const res = await fetch('/api/admin/stats');
+                    if (res.ok) {
+                        this.loggedIn = true;
+                        this.stats = await res.json();
+                        this.loadStudents();
+                        this.loadAttempts();
+                    }
+                } catch(e) {}
+            },
+
+            async login() {
+                this.error = '';
+                this.loading = true;
+                try {
+                    const res = await fetch('/admin/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: this.password })
+                    });
+                    if (!res.ok) {
+                        const data = await res.json();
+                        this.error = data.error || 'Wrong password';
+                        this.loading = false;
+                        return;
+                    }
+                    this.loggedIn = true;
+                    await this.loadDashboard();
+                    this.loadStudents();
+                    this.loadAttempts();
+                } catch(e) {
+                    this.error = 'Could not connect to server.';
+                }
+                this.loading = false;
+            },
+
+            logout() {
+                this.loggedIn = false;
+                this.password = '';
+                this.stats = { students_count: 0, tests_count: 0, avg_score: 0, recent: [] };
+                this.students = [];
+                this.selectedStudent = null;
+            },
+
+            async loadDashboard() {
+                try {
+                    const res = await fetch('/api/admin/stats');
+                    if (res.ok) this.stats = await res.json();
+                } catch(e) {}
+            },
+
+            async loadStudents() {
+                try {
+                    const res = await fetch('/api/admin/students');
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.students = data.students || [];
+                    }
+                } catch(e) {}
+            },
+
+            async loadAttempts() {
+                try {
+                    const res = await fetch('/api/admin/attempts');
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.attempts = data.attempts || [];
+                    }
+                } catch(e) {}
+            },
+
+            async viewStudent(id) {
+                this.selectedStudent = id;
+                this.studentDetail = null;
+                try {
+                    const res = await fetch('/api/admin/students/' + id);
+                    if (res.ok) this.studentDetail = await res.json();
+                } catch(e) {}
+            }
+        };
+    }
+    </script>
+</body>
+</html>
