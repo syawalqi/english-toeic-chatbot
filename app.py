@@ -270,29 +270,67 @@ def handle_tool_call(tool_call):
     return json.dumps({"error": f"Unknown tool: {name}"})
 
 
-TEST_GENERATION_PROMPT = """You are a TOEIC Reading test generator. Create a unique test.
+TOPIC_POOL = [
+    "A company announcing flexible working hours policy",
+    "A hotel confirming a booking with special requests",
+    "A software release announcing new features",
+    "A delivery service changing its shipping rates",
+    "A university sending admission results",
+    "A restaurant launching a weekend brunch menu",
+    "An airline updating its carry-on baggage rules",
+    "A department store announcing a clearance sale",
+    "A clinic sending appointment reminders",
+    "A bank notifying customers about new security features",
+    "A conference center announcing an upcoming tech summit",
+    "A magazine sending a subscription renewal offer",
+    "A car rental company introducing loyalty rewards",
+    "A pharmacy launching a home delivery service",
+    "A gym announcing new fitness class schedules",
+    "An insurance company updating its coverage plans",
+    "A coffee shop introducing a loyalty card program",
+    "An online retailer announcing free shipping week",
+    "A museum announcing a new exhibition opening",
+    "A courier service updating its tracking system",
+    "A company sending a meeting agenda for quarterly review",
+    "A travel agency promoting a holiday package deal",
+    "A library announcing extended opening hours",
+    "A parking garage introducing mobile payment",
+    "A cinema announcing a membership program",
+    "A language school offering new course levels",
+    "A supermarket announcing a loyalty discount event",
+    "A train company updating its schedule",
+    "A recruitment agency sending job interview tips",
+    "A music streaming service launching a family plan",
+    "A co-working space announcing new locations",
+    "An appliance store offering a trade-in promotion",
+    "A moving company sharing packing tips for customers",
+    "An airport announcing new direct flight routes",
+    "A bookstore hosting a meet-the-author event",
+]
+
+TEST_GENERATION_PROMPT = """You are a TOEIC Reading test generator. Every time you generate, you MUST produce completely different content from before.
 
 DIFFICULTY: {difficulty}
 SEED: {seed}
+TOPIC: {topic}
 
-Generate 2-3 short business-related reading passages and exactly 10 comprehension questions.
+IMPORTANT — Use the SEED and TOPIC above to generate unique content. Different SEED + TOPIC combinations MUST produce different passages, different company names, different people names, different places, and different questions. Never reuse content.
+
+Generate 2-3 short business-related reading passages and exactly 10 comprehension questions about the TOPIC given above.
 
 DIFFICULTY GUIDELINES:
 - EASY: Short passages (50-80 words), simple vocabulary, direct facts tested
 - MEDIUM: Moderate passages (80-120 words), intermediate vocabulary, some inference
 - HARD: Longer passages (100-150 words), advanced vocabulary, multiple inference types
 
-PASSAGE TOPICS (choose 2-3 randomly):
-- Business emails and memos
-- Product advertisements and promotions
-- Travel notices and policies
-- Office announcements and memos
-- Meeting schedules and agendas
-- Customer service messages
-- Company news and updates
-
 Each question must have 4 options (A, B, C, D) with exactly one correct answer.
 Include a brief explanation for each question.
+
+RULES:
+- Invent unique company names, people names, locations, dates, and prices — never use generic placeholders
+- Do NOT use "Company A", "Person B", or any placeholder names
+- Every passage must be about the specific TOPIC given above
+- The 10 questions should cover: main idea, specific details, inference, and vocabulary in context
 
 Return ONLY valid JSON with no markdown, no code fences, no extra text:
 
@@ -387,8 +425,45 @@ def parse_llm_json(content):
         raise
 
 
-def generate_test_via_llm(difficulty, seed):
-    prompt = TEST_GENERATION_PROMPT.format(difficulty=difficulty, seed=seed)
+FALLBACK_SETS = [
+    (FALLBACK_PASSAGES, FALLBACK_QUESTIONS),
+    ([
+        {"id": 1, "title": "New Branch Opening", "text": "To: Marketing Team\nFrom: David Wong, Regional Director\nSubject: New Branch in Surabaya\n\nDear Team,\n\nI am excited to announce that our new branch office in Surabaya will officially open on March 15. The address is Jl. Panglima Sudirman No. 45.\n\nThe opening ceremony will begin at 9:00 AM with a ribbon-cutting event. Local business partners and media have been invited. Marketing materials and promotional packages are ready for distribution.\n\nPlease confirm your attendance by March 10. Transportation from the main office will be provided.\n\nBest regards,\nDavid"},
+        {"id": 2, "title": "TechFix Pro Service", "text": "Is your computer running slow? TechFix Pro offers professional维修 services for all devices.\n\nOur Services:\n- Laptop & desktop repair\n- Virus removal and data recovery\n- Hardware upgrades and installation\n- Network setup and troubleshooting\n- Software installation and configuration\n\nAll repairs come with a 30-day warranty. Free diagnostic check for first-time customers. Visit our store at Plaza Senayan, 2nd Floor or call 021-555-1234.\n\nOpen Monday to Saturday, 9:00 AM to 7:00 PM."},
+        {"id": 3, "title": "Annual Company Picnic", "text": "Dear Colleagues,\n\nOur annual company picnic will be held on Saturday, June 22 at Taman Wisata Alam, Bogor. This is a family-friendly event, and we encourage everyone to bring their family members.\n\nSchedule:\n- 08:00: Depart from office (bus provided)\n- 10:00: Arrival and welcome activities\n- 12:00: Lunch buffet\n- 13:30: Team games and competitions\n- 16:00: Free time\n- 17:30: Return to office\n\nPlease RSVP by June 10 to the HR department. Indicate the number of family members joining so we can arrange transportation and food accordingly.\n\nLooking forward to a great day together!\nHR Department"},
+    ], [
+        {"id": 1, "passage_id": 1, "stem": "What is the purpose of this email?", "options": ["A. To announce a new branch opening", "B. To report sales figures", "C. To request budget approval", "D. To introduce a new product"], "correct_answer": "A", "explanation": "The email announces the opening of a new branch office in Surabaya."},
+        {"id": 2, "passage_id": 1, "stem": "When will the opening ceremony take place?", "options": ["A. March 10", "B. March 15", "C. June 22", "D. March 1"], "correct_answer": "B", "explanation": "The email states the new branch will officially open on March 15."},
+        {"id": 3, "passage_id": 1, "stem": "What should team members do by March 10?", "options": ["A. Prepare marketing materials", "B. Confirm their attendance", "C. Submit a budget report", "D. Visit the new office"], "correct_answer": "B", "explanation": "Team members should confirm their attendance by March 10."},
+        {"id": 4, "passage_id": 2, "stem": "What service does TechFix Pro offer?", "options": ["A. Cooking classes", "B. Computer repair services", "C. Fitness training", "D. Language courses"], "correct_answer": "B", "explanation": "TechFix Pro offers professional repair services for computers and devices."},
+        {"id": 5, "passage_id": 2, "stem": "What is offered to first-time customers?", "options": ["A. 50% discount", "B. Free diagnostic check", "C. Lifetime warranty", "D. Free delivery"], "correct_answer": "B", "explanation": "Free diagnostic check is offered for first-time customers."},
+        {"id": 6, "passage_id": 2, "stem": "Where is TechFix Pro located?", "options": ["A. Taman Wisata Alam", "B. Plaza Senayan", "C. Jl. Panglima Sudirman", "D. Surabaya"], "correct_answer": "B", "explanation": "The store is located at Plaza Senayan, 2nd Floor."},
+        {"id": 7, "passage_id": 3, "stem": "What is the main purpose of the picnic?", "options": ["A. Team building and family gathering", "B. Client entertainment", "C. Product launch", "D. Training session"], "correct_answer": "A", "explanation": "The picnic is described as a family-friendly event for team building."},
+        {"id": 8, "passage_id": 3, "stem": "What time will the group depart from the office?", "options": ["A. 06:00", "B. 08:00", "C. 10:00", "D. 07:00"], "correct_answer": "B", "explanation": "The bus departs from the office at 08:00."},
+        {"id": 9, "passage_id": 3, "stem": "What should employees indicate in their RSVP?", "options": ["A. Food preferences", "B. Number of family members", "C. T-shirt size", "D. Departure time preference"], "correct_answer": "B", "explanation": "Employees should indicate the number of family members joining for transportation and food arrangements."},
+        {"id": 10, "passage_id": 3, "stem": "By when should employees RSVP?", "options": ["A. March 15", "B. June 10", "C. June 22", "D. March 10"], "correct_answer": "B", "explanation": "Employees should RSVP by June 10 to the HR department."},
+    ]),
+    ([
+        {"id": 1, "title": "Hotel Booking Confirmation", "text": "Dear Mr. Hartono,\n\nThank you for choosing Grand Horizon Hotel. This email confirms your reservation:\n\nCheck-in: Friday, July 12, 2024\nCheck-out: Sunday, July 14, 2024\nRoom Type: Deluxe Ocean View (2 adults)\nRoom Rate: Rp 850,000 per night\nTotal: Rp 1,700,000\n\nYour request for a quiet room on a high floor has been noted. We will do our best to accommodate.\n\nAmenities included: Complimentary breakfast, airport shuttle, Wi-Fi, and access to the fitness center and pool.\n\nCheck-in time is 2:00 PM. Early check-in is subject to availability. Please present your reservation number (GH-2024-7890) at the front desk.\n\nWe look forward to welcoming you!\nGrand Horizon Hotel Reservations"},
+        {"id": 2, "title": "Quarterly Sales Meeting", "text": "To: Sales Department\nFrom: Maya Putri, Head of Sales\nSubject: Q3 Sales Meeting Agenda\n\nDear Team,\n\nOur Q3 sales meeting will be held on Thursday, September 5 at 10:00 AM in Conference Room A.\n\nAgenda:\n1. Q2 performance review (15 min)\n2. New product launch strategy (30 min)\n3. Regional market analysis (20 min)\n4. Q3 target setting (25 min)\n5. Open discussion (15 min)\n\nPlease prepare your individual sales reports and bring them to the meeting. If you cannot attend, notify me by September 3.\n\nRefreshments will be provided.\n\nRegards,\nMaya"},
+        {"id": 3, "title": "Weekly Promotion", "text": "GreenMart Supermarket Weekly Deals!\n\nValid from Monday, August 5 to Sunday, August 11.\n\nFresh Produce:\n- Apples: Rp 25,000/kg (regular Rp 35,000)\n- Broccoli: Rp 12,000/piece (regular Rp 18,000)\n- Fresh salmon: Rp 85,000/250g\n\nHousehold:\n- Dish soap: Buy 2 get 1 free\n- Paper towels: Rp 45,000 for 6 rolls\n\nSpecial: Spend Rp 200,000 or more and receive a free shopping bag!\n\n*While stocks last. Prices may vary at different locations."},
+    ], [
+        {"id": 1, "passage_id": 1, "stem": "What type of room did Mr. Hartono reserve?", "options": ["A. Standard Room", "B. Deluxe Ocean View", "C. Suite", "D. Family Room"], "correct_answer": "B", "explanation": "The reservation is for a Deluxe Ocean View room."},
+        {"id": 2, "passage_id": 1, "stem": "How much will Mr. Hartono pay in total?", "options": ["A. Rp 850,000", "B. Rp 1,700,000", "C. Rp 2,000,000", "D. Rp 1,000,000"], "correct_answer": "B", "explanation": "The total is Rp 1,700,000 for two nights at Rp 850,000 per night."},
+        {"id": 3, "passage_id": 1, "stem": "Which amenity is included with the room?", "options": ["A. Spa access", "B. Airport shuttle", "C. Room service", "D. Laundry service"], "correct_answer": "B", "explanation": "Complimentary airport shuttle is listed as an included amenity."},
+        {"id": 4, "passage_id": 2, "stem": "When is the Q3 sales meeting?", "options": ["A. September 3", "B. September 5", "C. August 5", "D. July 12"], "correct_answer": "B", "explanation": "The meeting is on Thursday, September 5."},
+        {"id": 5, "passage_id": 2, "stem": "What should team members bring to the meeting?", "options": ["A. Laptops", "B. Individual sales reports", "C. Client feedback forms", "D. Marketing brochures"], "correct_answer": "B", "explanation": "Team members should prepare their individual sales reports and bring them to the meeting."},
+        {"id": 6, "passage_id": 2, "stem": "How much time is allocated for Q2 performance review?", "options": ["A. 15 minutes", "B. 20 minutes", "C. 25 minutes", "D. 30 minutes"], "correct_answer": "A", "explanation": "The Q2 performance review is scheduled for 15 minutes."},
+        {"id": 7, "passage_id": 3, "stem": "What is the discounted price for apples?", "options": ["A. Rp 25,000/kg", "B. Rp 35,000/kg", "C. Rp 12,000/kg", "D. Rp 45,000/kg"], "correct_answer": "A", "explanation": "Apples are discounted to Rp 25,000 per kilogram from the regular Rp 35,000."},
+        {"id": 8, "passage_id": 3, "stem": "What promotion is offered for dish soap?", "options": ["A. 50% off", "B. Buy 2 get 1 free", "C. Free sample", "D. Rp 10,000 discount"], "correct_answer": "B", "explanation": "Dish soap is on a 'Buy 2 get 1 free' promotion."},
+        {"id": 9, "passage_id": 3, "stem": "What do customers get when they spend Rp 200,000?", "options": ["A. A discount voucher", "B. A free shopping bag", "C. A loyalty point bonus", "D. Free delivery"], "correct_answer": "B", "explanation": "Customers who spend Rp 200,000 or more receive a free shopping bag."},
+        {"id": 10, "passage_id": 3, "stem": "How long is this promotion valid?", "options": ["A. 3 days", "B. 5 days", "C. 7 days", "D. 10 days"], "correct_answer": "C", "explanation": "The promotion runs from Monday to Sunday, which is 7 days."},
+    ]),
+]
+
+
+def generate_test_via_llm(difficulty, seed, topic):
+    prompt = TEST_GENERATION_PROMPT.format(difficulty=difficulty, seed=seed, topic=topic)
     response = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "system", "content": "You are a TOEIC test generator. Return ONLY valid JSON."}, {"role": "user", "content": prompt}],
@@ -399,13 +474,16 @@ def generate_test_via_llm(difficulty, seed):
     )
     raw = response.choices[0].message.content
     data = parse_llm_json(raw)
-    passages = data.get('passages', FALLBACK_PASSAGES)
-    questions = data.get('questions', FALLBACK_QUESTIONS)
-    if len(questions) != 10:
-        questions = FALLBACK_QUESTIONS
-    if not passages:
-        passages = FALLBACK_PASSAGES
+    passages = data.get('passages', None)
+    questions = data.get('questions', None)
+    if not passages or not questions or len(questions) != 10:
+        raise ValueError("Invalid LLM response")
     return passages, questions
+
+
+def get_fallback_set(seed):
+    idx = hash(seed) % len(FALLBACK_SETS)
+    return FALLBACK_SETS[idx]
 
 
 def strip_answer_key(questions):
@@ -571,18 +649,16 @@ def generate_test():
         return jsonify({'error': 'Invalid difficulty. Use easy, medium, or hard.'}), 400
 
     test_id = None
-    passages = FALLBACK_PASSAGES
-    questions = FALLBACK_QUESTIONS
+    topic = TOPIC_POOL[random.randint(0, len(TOPIC_POOL) - 1)]
 
     for attempt in range(3):
         seed = f"{student_id}-{int(time.time() * 1000)}-{random.randint(0, 9999)}"
         try:
-            passages, questions = generate_test_via_llm(difficulty, seed)
+            passages, questions = generate_test_via_llm(difficulty, seed, topic)
         except Exception as e:
             print(f"[DEBUG] LLM attempt {attempt} failed: {e}", flush=True)
             seed = f"fallback-{int(time.time() * 1000000)}-{random.randint(0, 99999)}"
-            passages = FALLBACK_PASSAGES
-            questions = FALLBACK_QUESTIONS
+            passages, questions = get_fallback_set(seed)
 
         conn = get_db()
         c = conn.cursor()
@@ -672,7 +748,7 @@ def get_history_api():
     conn = get_db()
     c = conn.cursor()
     c.execute("""
-        SELECT ta.id, ta.raw_score, ta.total_questions, ta.completed_at, rt.difficulty
+        SELECT ta.id, ta.test_id, ta.raw_score, ta.total_questions, ta.completed_at, rt.difficulty
         FROM test_attempts ta
         JOIN reading_tests rt ON ta.test_id = rt.id
         WHERE ta.student_id = ?
@@ -683,6 +759,7 @@ def get_history_api():
 
     attempts = [{
         'attempt_id': r['id'],
+        'test_id': r['test_id'],
         'score': r['raw_score'],
         'total': r['total_questions'],
         'difficulty': r['difficulty'],
