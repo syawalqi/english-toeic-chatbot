@@ -1,190 +1,582 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asisten Akademik UMY</title>
+    <title>TOEIC Reading Practice</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         #msg-box { scroll-behavior: smooth; }
-        #msg-box > div:last-child { animation: in 0.2s ease; }
-        @keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        .td { width: 7px; height: 7px; border-radius: 50%; background: #9ca3af; animation: b 1.2s infinite; }
+        #msg-box > div:last-child { animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .td { width: 7px; height: 7px; border-radius: 50%; background: #9ca3af; animation: bounce 1.2s infinite; }
         .td:nth-child(2) { animation-delay: .15s; }
         .td:nth-child(3) { animation-delay: .3s; }
-        @keyframes b { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+        @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
         @media (max-width: 640px) { .app { height: 100vh !important; border-radius: 0 !important; } }
+        .passage-text { white-space: pre-line; font-size: 0.875rem; line-height: 1.6; color: #374151; }
+        .result-circle { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; margin: 0 auto; }
+        .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600; }
+        .skeleton { background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 0.5rem; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     </style>
 </head>
-<body class="bg-gray-100 h-screen flex items-center justify-center font-sans" x-data="app()" x-init="init()">
-    <div class="app w-full max-w-xl h-[90vh] bg-white shadow rounded-2xl flex flex-col overflow-hidden">
-
-        <!-- HEADER -->
-        <div class="bg-gradient-to-r from-blue-700 to-blue-600 px-4 py-3 flex items-center justify-between shrink-0">
-            <div class="flex items-center gap-2">
-                <span class="text-xl">🎓</span>
-                <div>
-                    <div class="text-white font-semibold text-sm">Asisten Akademik UMY</div>
-                    <div class="text-blue-200 text-[10px]">AI Terapan 2026</div>
-                </div>
+<body class="bg-gray-100 font-sans" x-data="app()" x-init="init()">
+    <!-- Registration Screen -->
+    <div x-show="!student" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 to-blue-800 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+            <div class="text-center mb-6">
+                <div class="text-5xl mb-3">🎯</div>
+                <h1 class="text-2xl font-bold text-gray-800">TOEIC Reading Practice</h1>
+                <p class="text-gray-500 text-sm mt-1">Enter your details to start practicing TOEIC Reading</p>
             </div>
-            <button @click="reset()" class="text-xs text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors">+ Baru</button>
-        </div>
-
-        <!-- MESSAGES -->
-        <div id="msg-box" class="flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-gray-50/50" x-ref="msgs">
-            <template x-for="(m, i) in msgs" :key="i">
-                <div :class="'flex items-start gap-2 ' + (m.role === 'user' ? 'justify-end' : '')">
-                    <template x-if="m.role === 'assistant'">
-                        <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs shrink-0">🤖</div>
-                    </template>
-                    <div :class="'rounded-xl px-3.5 py-2.5 max-w-[82%] ' + (m.role === 'user' ? 'bg-blue-700 text-white rounded-tr-sm' : 'bg-white text-gray-700 shadow-sm rounded-tl-sm')">
-                        <template x-if="m.tools && m.tools.length">
-                            <div class="flex flex-wrap gap-1 mb-1">
-                                <template x-for="t in m.tools" :key="t.function?.name">
-                                    <span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded" x-text="'🔧 '+ (t.function?.name || 'tool')"></span>
-                                </template>
-                            </div>
-                        </template>
-                        <div class="text-sm leading-relaxed" x-html="fmt(m.text)"></div>
-                    </div>
-                    <template x-if="m.role === 'user'">
-                        <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs text-white shrink-0 font-bold">G</div>
-                    </template>
+            <form @submit.prevent="register">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input type="text" x-model="regName" required
+                        class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        placeholder="e.g. Budi Santoso">
                 </div>
-            </template>
-        </div>
-
-        <!-- TYPING -->
-        <div x-show="typing" class="px-4 py-2 bg-gray-50 border-t border-gray-100 shrink-0" x-cloak>
-            <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs shrink-0">🤖</div>
-                <div class="flex gap-1"><span class="td"></span><span class="td"></span><span class="td"></span></div>
-            </div>
-        </div>
-
-        <!-- INPUT -->
-        <div class="border-t border-gray-200 bg-white px-3 py-2 shrink-0">
-            <form @submit.prevent="send()" class="flex gap-2">
-                <input type="text" x-model="input"
-                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    placeholder="Ketik pesan..." autocomplete="off">
-                <button type="submit" :disabled="!input.trim() || busy"
-                    class="bg-blue-700 hover:bg-blue-600 text-white rounded-lg px-5 py-2.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                    Kirim
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">NIM</label>
+                    <input type="text" x-model="regNim" required
+                        class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        placeholder="e.g. 20240110001">
+                </div>
+                <div x-show="regError" x-text="regError" class="text-red-500 text-sm mb-3"></div>
+                <button type="submit" :disabled="regLoading"
+                    class="w-full bg-blue-700 hover:bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50">
+                    <span x-show="!regLoading">Start Practice</span>
+                    <span x-show="regLoading">Loading...</span>
                 </button>
             </form>
-            <div class="text-[9px] text-gray-400 text-center mt-1">DeepSeek V4 Flash</div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div x-show="student" class="app max-w-3xl mx-auto h-[90vh] bg-white shadow rounded-2xl flex flex-col overflow-hidden mt-4 mb-4">
+
+        <!-- Top Bar -->
+        <div class="bg-gradient-to-r from-blue-700 to-blue-600 px-4 py-3 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">🎯</span>
+                <div>
+                    <div class="text-white font-semibold text-sm">TOEIC Reading Practice</div>
+                    <div class="text-blue-200 text-[10px]" x-text="student?.name"></div>
+                </div>
+            </div>
+            <button @click="logout()" class="text-xs text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors">Exit</button>
+        </div>
+
+        <!-- Tab Bar -->
+        <div class="flex border-b border-gray-200 bg-white shrink-0">
+            <button @click="tab='test'" :class="tab==='test' ? 'tab-active text-blue-600' : 'text-gray-500 hover:text-gray-700'" class="flex-1 py-2.5 text-sm font-medium text-center transition-colors">📝 Reading Test</button>
+            <button @click="tab='chat'" :class="tab==='chat' ? 'tab-active text-blue-600' : 'text-gray-500 hover:text-gray-700'" class="flex-1 py-2.5 text-sm font-medium text-center transition-colors">💬 Chat</button>
+            <button @click="tab='history'; loadHistory()" :class="tab==='history' ? 'tab-active text-blue-600' : 'text-gray-500 hover:text-gray-700'" class="flex-1 py-2.5 text-sm font-medium text-center transition-colors">📊 History</button>
+        </div>
+
+        <!-- ═══════════════════ READING TEST TAB ═══════════════════ -->
+        <div x-show="tab==='test'" class="flex-1 overflow-y-auto">
+
+            <!-- Config State -->
+            <div x-show="testState==='config'" class="p-6">
+                <h2 class="text-lg font-bold text-gray-800 mb-2">TOEIC Reading Practice Test</h2>
+                <p class="text-sm text-gray-500 mb-6">Select difficulty and generate a unique test with 10 questions.</p>
+
+                <div class="grid grid-cols-3 gap-3 mb-6">
+                    <button @click="difficulty='easy'"
+                        :class="difficulty==='easy' ? 'ring-2 ring-green-500 border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'"
+                        class="p-4 rounded-xl border-2 text-center transition-all">
+                        <div class="text-2xl mb-1">🌱</div>
+                        <div class="font-semibold text-sm text-gray-800">Easy</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">Short passages, simple vocab</div>
+                    </button>
+                    <button @click="difficulty='medium'"
+                        :class="difficulty==='medium' ? 'ring-2 ring-yellow-500 border-yellow-500 bg-yellow-50' : 'border-gray-200 hover:border-gray-300'"
+                        class="p-4 rounded-xl border-2 text-center transition-all">
+                        <div class="text-2xl mb-1">📘</div>
+                        <div class="font-semibold text-sm text-gray-800">Medium</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">Moderate length, some inference</div>
+                    </button>
+                    <button @click="difficulty='hard'"
+                        :class="difficulty==='hard' ? 'ring-2 ring-red-500 border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'"
+                        class="p-4 rounded-xl border-2 text-center transition-all">
+                        <div class="text-2xl mb-1">🔥</div>
+                        <div class="font-semibold text-sm text-gray-800">Hard</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">Long passages, advanced vocab</div>
+                    </button>
+                </div>
+
+                <div x-show="testError" x-text="testError" class="text-red-500 text-sm mb-3"></div>
+
+                <button @click="generateTest()" :disabled="testLoading"
+                    class="w-full bg-blue-700 hover:bg-blue-600 text-white rounded-xl py-3 text-sm font-medium transition-colors disabled:opacity-50">
+                    <span x-show="!testLoading">Generate Test</span>
+                    <span x-show="testLoading">Generating...</span>
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="testState==='loading'" class="p-6 space-y-4">
+                <div class="skeleton h-6 w-48 mb-4"></div>
+                <div class="skeleton h-32 w-full"></div>
+                <div class="skeleton h-4 w-3/4 mt-4"></div>
+                <div class="skeleton h-4 w-1/2"></div>
+                <div class="skeleton h-4 w-5/6"></div>
+                <div class="skeleton h-4 w-2/3"></div>
+                <p class="text-center text-sm text-gray-400 mt-4">Generating your unique TOEIC test...</p>
+            </div>
+
+            <!-- Taking State -->
+            <div x-show="testState==='taking'" class="p-4">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-gray-800">Reading Test</h3>
+                    <span class="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-medium" x-text="difficulty.charAt(0).toUpperCase()+difficulty.slice(1)"></span>
+                </div>
+
+                <!-- Passages -->
+                <template x-for="p in passages" :key="p.id">
+                    <div class="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200">
+                        <div class="font-semibold text-sm text-gray-700 mb-2" x-text="p.title"></div>
+                        <div class="passage-text text-gray-600" x-text="p.text"></div>
+                    </div>
+                </template>
+
+                <!-- Questions -->
+                <div class="space-y-5 mt-2">
+                    <template x-for="(q, i) in questions" :key="q.id">
+                        <div class="bg-white rounded-xl p-4 border border-gray-200">
+                            <p class="font-medium text-sm text-gray-800 mb-3">
+                                <span class="text-blue-600 font-bold" x-text="i+1"></span>.
+                                <span x-text="q.stem"></span>
+                            </p>
+                            <div class="space-y-1.5">
+                                <template x-for="opt in q.options" :key="opt">
+                                    <label class="flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer transition-colors"
+                                        :class="answers[q.id] === opt.charAt(0) ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'">
+                                        <input type="radio" :name="'q_'+q.id" :value="opt.charAt(0)" x-model="answers[q.id]" class="accent-blue-600">
+                                        <span class="text-sm text-gray-700" x-text="opt"></span>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <button @click="submitTest()" :disabled="submitting"
+                    class="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-3 text-sm font-medium transition-colors mt-6 disabled:opacity-50">
+                    <span x-show="!submitting">Submit Answers</span>
+                    <span x-show="submitting">Scoring...</span>
+                </button>
+            </div>
+
+            <!-- Results State -->
+            <div x-show="testState==='results'" class="p-6">
+                <!-- Score Circle -->
+                <div class="text-center mb-6">
+                    <div class="result-circle"
+                        :class="score >= 8 ? 'bg-green-100 text-green-700' : score >= 5 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'">
+                        <div>
+                            <div class="text-3xl" x-text="score+'/'+total"></div>
+                            <div class="text-xs font-normal opacity-75" x-text="Math.round(score/total*100)+'%'"></div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-2">
+                        <span x-show="score >= 8">Excellent work!</span>
+                        <span x-show="score >= 5 && score < 8">Good effort! Keep practicing.</span>
+                        <span x-show="score < 5">Keep studying, you will improve!</span>
+                    </p>
+                </div>
+
+                <!-- Per-question Results -->
+                <div class="space-y-3">
+                    <template x-for="(r, i) in results" :key="i">
+                        <div class="rounded-xl p-4 border"
+                            :class="r.correct ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
+                            <div class="flex items-start gap-2">
+                                <span class="text-lg shrink-0 mt-0.5" x-text="r.correct ? '✅' : '❌'"></span>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium text-gray-800 mb-1">
+                                        <span x-text="i+1"></span>.
+                                        <span x-text="r.stem"></span>
+                                    </p>
+                                    <p class="text-xs text-gray-500">
+                                        Your answer: <span class="font-medium" :class="r.correct ? 'text-green-600' : 'text-red-600'" x-text="r.user_answer || '(none)'"></span>
+                                        <span x-show="!r.correct">
+                                            &nbsp;| Correct: <span class="font-medium text-green-600" x-text="r.correct_answer"></span>
+                                        </span>
+                                    </p>
+                                    <p x-show="r.explanation" class="text-xs text-gray-500 mt-1 italic" x-text="r.explanation"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button @click="resetTest()" class="flex-1 bg-blue-700 hover:bg-blue-600 text-white rounded-xl py-3 text-sm font-medium transition-colors">Try Another</button>
+                    <button @click="tab='chat'" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-3 text-sm font-medium transition-colors">Discuss in Chat</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════ CHAT TAB ═══════════════════ -->
+        <div x-show="tab==='chat'" class="flex-1 flex flex-col">
+            <div id="msg-box" class="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50/50" x-ref="msgs">
+                <template x-for="(m, i) in msgs" :key="i">
+                    <div :class="'flex items-start gap-2 ' + (m.role === 'user' ? 'justify-end' : '')">
+                        <template x-if="m.role === 'assistant'">
+                            <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs shrink-0">🤖</div>
+                        </template>
+                        <div :class="'rounded-xl px-3.5 py-2.5 max-w-[82%] ' + (m.role === 'user' ? 'bg-blue-700 text-white rounded-tr-sm' : 'bg-white text-gray-700 shadow-sm rounded-tl-sm')">
+                            <div class="text-sm leading-relaxed" x-text="m.text"></div>
+                        </div>
+                        <template x-if="m.role === 'user'">
+                            <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs text-white shrink-0 font-bold" x-text="student?.name?.charAt(0) || 'U'"></div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <div x-show="typing" class="px-4 py-2 bg-gray-50 border-t border-gray-100 shrink-0">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs shrink-0">🤖</div>
+                    <div class="flex gap-1"><span class="td"></span><span class="td"></span><span class="td"></span></div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 bg-white px-3 py-2 shrink-0">
+                <form @submit.prevent="send()" class="flex gap-2">
+                    <input type="text" x-model="input"
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        placeholder="Ask about TOEIC, discuss answers..." autocomplete="off">
+                    <button type="submit" :disabled="!input.trim() || typing"
+                        class="bg-blue-700 hover:bg-blue-600 text-white rounded-lg px-5 py-2.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                        Send
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ═══════════════════ HISTORY TAB ═══════════════════ -->
+        <div x-show="tab==='history'" class="flex-1 overflow-y-auto p-4">
+
+            <!-- History List -->
+            <div x-show="!resultDetail">
+                <h3 class="font-bold text-gray-800 mb-4">Your Test History</h3>
+                <div x-show="historyLoading" class="text-center text-sm text-gray-400 py-8">Loading...</div>
+                <div x-show="!historyLoading && history.length === 0" class="text-center text-sm text-gray-400 py-8">
+                    No tests taken yet. Go to the Reading Test tab to start!
+                </div>
+                <div x-show="!historyLoading && history.length > 0" class="space-y-2">
+                    <template x-for="h in history" :key="h.attempt_id">
+                        <div @click="viewResult(h.attempt_id)"
+                            class="flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <div class="flex items-center gap-3">
+                                <span class="text-lg"
+                                    :class="h.score >= 8 ? '' : h.score >= 5 ? '' : ''"
+                                    x-text="h.score >= 8 ? '🌟' : h.score >= 5 ? '📗' : '📕'"></span>
+                                <div>
+                                    <div class="text-sm font-medium text-gray-800">
+                                        <span x-text="h.score+'/'+h.total"></span>
+                                        <span class="text-gray-400 mx-1">·</span>
+                                        <span class="text-gray-500 capitalize" x-text="h.difficulty"></span>
+                                    </div>
+                                    <div class="text-[10px] text-gray-400" x-text="h.date"></div>
+                                </div>
+                            </div>
+                            <span class="text-xs text-blue-600">View</span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Result Detail View -->
+            <div x-show="resultDetail">
+                <button @click="resultDetail=null" class="text-sm text-blue-600 hover:text-blue-700 mb-4">&larr; Back to History</button>
+
+                <div class="text-center mb-4">
+                    <div class="inline-flex items-center gap-2 bg-gray-100 rounded-full px-4 py-1.5 text-sm font-medium text-gray-700">
+                        Score: <span class="text-lg font-bold" :class="resultDetail?.score >= 8 ? 'text-green-600' : resultDetail?.score >= 5 ? 'text-yellow-600' : 'text-red-600'" x-text="resultDetail?.score+'/'+resultDetail?.total"></span>
+                    </div>
+                </div>
+
+                <template x-for="p in resultDetail?.passages || []" :key="p.id">
+                    <div class="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200">
+                        <div class="font-semibold text-sm text-gray-700 mb-2" x-text="p.title"></div>
+                        <div class="passage-text text-gray-600" x-text="p.text"></div>
+                    </div>
+                </template>
+
+                <div class="space-y-3">
+                    <template x-for="(r, i) in resultDetail?.results || []" :key="i">
+                        <div class="rounded-xl p-4 border"
+                            :class="r.correct ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
+                            <div class="flex items-start gap-2">
+                                <span class="text-lg shrink-0 mt-0.5" x-text="r.correct ? '✅' : '❌'"></span>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium text-gray-800 mb-1">
+                                        <span x-text="i+1"></span>.
+                                        <span x-text="r.stem"></span>
+                                    </p>
+                                    <p class="text-xs text-gray-500">
+                                        Your answer: <span class="font-medium" :class="r.correct ? 'text-green-600' : 'text-red-600'" x-text="r.user_answer || '(none)'"></span>
+                                        <span x-show="!r.correct">
+                                            &nbsp;| Correct: <span class="font-medium text-green-600" x-text="r.correct_answer"></span>
+                                        </span>
+                                    </p>
+                                    <p x-show="r.explanation" class="text-xs text-gray-500 mt-1 italic" x-text="r.explanation"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
     function app() {
         return {
-            input: '',
+            // Identity
+            student: null,
+            regName: '',
+            regNim: '',
+            regError: '',
+            regLoading: false,
+
+            // Navigation
+            tab: 'test',
+
+            // Test
+            testState: 'config',
+            difficulty: 'medium',
+            passages: [],
+            questions: [],
+            answers: {},
+            testId: null,
+            score: null,
+            total: null,
+            results: [],
+            testLoading: false,
+            testError: '',
+            submitting: false,
+
+            // History
+            history: [],
+            historyLoading: false,
+            resultDetail: null,
+
+            // Chat
             msgs: [],
+            input: '',
             typing: false,
-            busy: false,
             sid: '',
 
             init() {
-                this.sid = localStorage.getItem('sid') || '';
-                if (!this.sid) {
-                    this.sid = crypto.randomUUID();
-                    localStorage.setItem('sid', this.sid);
+                const stored = localStorage.getItem('toeic_student');
+                if (stored) {
+                    try {
+                        this.student = JSON.parse(stored);
+                        this.sid = localStorage.getItem('toeic_sid') || crypto.randomUUID();
+                        localStorage.setItem('toeic_sid', this.sid);
+                        this.loadChatHistory();
+                        return;
+                    } catch(e) {
+                        localStorage.removeItem('toeic_student');
+                    }
                 }
-                // Load history from server
-                this.loadHistory();
+                this.sid = crypto.randomUUID();
+                localStorage.setItem('toeic_sid', this.sid);
+            },
+
+            async register() {
+                this.regError = '';
+                this.regLoading = true;
+                try {
+                    const res = await fetch('/api/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: this.regName.trim(), nim: this.regNim.trim() })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        this.regError = data.error || 'Registration failed.';
+                        this.regLoading = false;
+                        return;
+                    }
+                    this.student = data;
+                    localStorage.setItem('toeic_student', JSON.stringify(data));
+                    this.msgs = [{
+                        role: 'assistant',
+                        text: 'Welcome, ' + data.name + '! 🎯\n\nI am your TOEIC Reading practice assistant. I can help you prepare for the TOEIC Reading section.\n\nGo to the Reading Test tab to generate a practice test, or ask me anything about TOEIC here!'
+                    }];
+                } catch(e) {
+                    this.regError = 'Could not connect to server.';
+                }
+                this.regLoading = false;
+            },
+
+            logout() {
+                this.student = null;
+                this.regName = '';
+                this.regNim = '';
+                localStorage.removeItem('toeic_student');
+                this.tab = 'test';
+                this.testState = 'config';
+            },
+
+            async generateTest() {
+                this.testLoading = true;
+                this.testError = '';
+                this.testState = 'loading';
+                this.answers = {};
+                try {
+                    const res = await fetch('/api/test/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ student_id: this.student.student_id, difficulty: this.difficulty })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        this.testError = data.error || 'Failed to generate test.';
+                        this.testState = 'config';
+                        this.testLoading = false;
+                        return;
+                    }
+                    this.testId = data.test_id;
+                    this.passages = data.passages;
+                    this.questions = data.questions;
+                    this.testState = 'taking';
+                } catch(e) {
+                    this.testError = 'Could not connect to server.';
+                    this.testState = 'config';
+                }
+                this.testLoading = false;
+            },
+
+            async submitTest() {
+                const answered = Object.keys(this.answers).length;
+                if (answered < this.questions.length) {
+                    alert('Please answer all ' + this.questions.length + ' questions before submitting.');
+                    return;
+                }
+                this.submitting = true;
+                try {
+                    const answersArr = Object.entries(this.answers).map(([qid, ans]) => ({
+                        question_id: parseInt(qid),
+                        answer: ans
+                    }));
+                    const res = await fetch('/api/test/submit', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            student_id: this.student.student_id,
+                            test_id: this.testId,
+                            answers: answersArr
+                        })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        alert(data.error || 'Failed to submit.');
+                        this.submitting = false;
+                        return;
+                    }
+                    this.score = data.score;
+                    this.total = data.total;
+                    this.results = data.results;
+                    this.testState = 'results';
+                } catch(e) {
+                    alert('Could not connect to server.');
+                }
+                this.submitting = false;
+            },
+
+            resetTest() {
+                this.testState = 'config';
+                this.passages = [];
+                this.questions = [];
+                this.answers = {};
+                this.testId = null;
+                this.score = null;
+                this.results = [];
+                this.testError = '';
             },
 
             async loadHistory() {
+                this.historyLoading = true;
+                this.resultDetail = null;
                 try {
-                    var res = await fetch('/api/history?session_id=' + this.sid);
-                    var data = await res.json();
-                    if (data.messages && data.messages.length > 0) {
-                        this.msgs = data.messages;
-                    } else {
-                        this.msgs.push({
-                            role: 'assistant',
-                            text: 'Halo! Saya asisten akademik UMY 👋<br><br>Saya bisa bantu kelola <b>jadwal kuliah</b>, <b>tugas</b>, dan <b>info akademik</b>.<br><br><span class="text-gray-400 italic">Coba: "Jadwal hari ini" atau "Tugas yang belum"</span>',
-                            tools: []
-                        });
-                    }
+                    const res = await fetch('/api/history?student_id=' + this.student.student_id);
+                    const data = await res.json();
+                    this.history = data.attempts || [];
                 } catch(e) {
-                    this.msgs.push({
-                        role: 'assistant',
-                        text: 'Halo! Saya asisten akademik UMY 👋',
-                        tools: []
-                    });
+                    this.history = [];
                 }
-                this.$nextTick(() => this.scroll());
+                this.historyLoading = false;
+            },
+
+            async viewResult(attemptId) {
+                try {
+                    const res = await fetch('/api/test/result/' + attemptId + '?student_id=' + this.student.student_id);
+                    const data = await res.json();
+                    if (!res.ok) {
+                        alert(data.error || 'Could not load result.');
+                        return;
+                    }
+                    this.resultDetail = data;
+                } catch(e) {
+                    alert('Could not load result.');
+                }
+            },
+
+            async loadChatHistory() {
+                try {
+                    const res = await fetch('/api/history/chat?session_id=' + this.sid);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.messages && data.messages.length > 0) {
+                            this.msgs = data.messages;
+                            return;
+                        }
+                    }
+                } catch(e) {}
+                this.msgs = [{
+                    role: 'assistant',
+                    text: 'Welcome! 🎯\n\nI am your TOEIC Reading practice assistant. Ask me about TOEIC strategies, vocabulary, or discuss your test results!'
+                }];
             },
 
             scroll() {
                 this.$nextTick(() => {
-                    var box = this.$refs.msgs;
+                    const box = this.$refs.msgs;
                     if (box) box.scrollTop = box.scrollHeight;
                 });
             },
 
-            // Markdown render (safe: escaped -sanitized via marked)
-            fmt(s) {
-                if (!s) return '';
-                // marked with gfm: true for tables, lists, etc
-                return marked.parse(s, { gfm: true, breaks: true });
-            },
-
             async send() {
-                var msg = this.input.trim();
-                if (!msg || this.busy) return;
+                const msg = this.input.trim();
+                if (!msg || this.typing) return;
 
                 this.input = '';
-                this.msgs.push({ role: 'user', text: msg, tools: [] });
+                this.msgs.push({ role: 'user', text: msg });
                 this.typing = true;
-                this.busy = true;
                 this.scroll();
 
                 try {
-                    var res = await fetch('/api/chat', {
+                    const res = await fetch('/api/chat', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ message: msg, session_id: this.sid })
                     });
-                    var data = await res.json();
-
-                    var tools = data.tool_calls || [];
-                    var resp = data.response || '⚠️ Maaf, tidak ada respons.';
-
-                    this.msgs.push({ role: 'assistant', text: resp, tools: tools });
+                    const data = await res.json();
+                    this.msgs.push({ role: 'assistant', text: data.response || 'Sorry, no response.' });
                 } catch(e) {
-                    this.msgs.push({ role: 'assistant', text: '⚠️ Gagal terhubung ke server.', tools: [] });
+                    this.msgs.push({ role: 'assistant', text: 'Could not connect to server.' });
                 }
 
                 this.typing = false;
-                this.busy = false;
-                this.scroll();
-            },
-
-            reset() {
-                if (this.busy) return;
-                fetch('/api/reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: this.sid })
-                }).then(r => r.json()).then(d => {
-                    this.sid = d.session_id;
-                    localStorage.setItem('sid', this.sid);
-                }).catch(() => {
-                    this.sid = crypto.randomUUID();
-                    localStorage.setItem('sid', this.sid);
-                });
-                this.msgs = [{
-                    role: 'assistant',
-                    text: 'Halo! Saya asisten akademik UMY 👋<br><br>Saya bisa bantu kelola <b>jadwal kuliah</b>, <b>tugas</b>, dan <b>info akademik</b>.<br><br><span class="text-gray-400 italic">Coba: "Jadwal hari ini" atau "Tugas yang belum"</span>',
-                    tools: []
-                }];
                 this.scroll();
             }
         };
