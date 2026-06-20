@@ -430,7 +430,7 @@ def parse_llm_json(content):
 
     # Step 4: Parse
     try:
-        return json.loads(content)
+        return json.loads(content, strict=False)
     except json.JSONDecodeError as e:
         raise ValueError(f"Failed to parse JSON: {e}") from e
 
@@ -492,8 +492,7 @@ def generate_test_via_llm(difficulty, seed, topic):
 
 
 def get_fallback_set(seed):
-    idx = hash(seed) % len(FALLBACK_SETS)
-    return FALLBACK_SETS[idx]
+    return random.choice(FALLBACK_SETS)
 
 
 def strip_answer_key(questions):

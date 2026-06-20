@@ -251,8 +251,8 @@
         </div>
 
         <!-- ═══════════════════ CHAT TAB ═══════════════════ -->
-        <div x-show="tab==='chat'" class="flex-1 flex flex-col">
-            <div id="msg-box" class="flex-1 overflow-y-auto px-2 sm:px-4 py-3 bg-gray-50/50" x-ref="msgs">
+        <div x-show="tab==='chat'" class="flex-1 flex flex-col min-h-0">
+            <div id="msg-box" class="flex-1 overflow-y-auto px-2 sm:px-4 py-3 bg-gray-50/50 min-h-0" x-ref="msgs">
                 <div class="max-w-2xl mx-auto space-y-3">
                     <template x-for="(m, i) in msgs" :key="i">
                         <div :class="'flex items-start gap-2 ' + (m.role === 'user' ? 'justify-end' : '')">
