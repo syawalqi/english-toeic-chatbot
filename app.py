@@ -400,29 +400,39 @@ def get_history(session_id, limit=20):
 def parse_llm_json(content):
     """Parse JSON from LLM output, handling common formatting issues."""
     if not content:
-        raise json.JSONDecodeError("Empty content", "", 0)
-    content = content.strip()
-    # Strip markdown code fences
-    if content.startswith('```'):
-        lines = content.split('\n', 1)
-        content = lines[1] if len(lines) > 1 else ''
-    if content.endswith('```'):
-        content = content.rsplit('```', 1)[0]
-    content = content.strip()
-    if content.startswith('json'):
-        content = content[4:].strip()
-    # Try standard parse
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        pass
-    # Fix trailing commas before ] or }
+        raise ValueError("Empty content")
+
+    # Step 1: Find the first ``` block and extract everything inside it
+    start_fence = content.find('```')
+    if start_fence != -1:
+        after_fence = content[start_fence + 3:].strip()
+        # Skip optional language label (e.g. "json")
+        first_line_end = after_fence.find('\n')
+        if first_line_end != -1:
+            candidate = after_fence[first_line_end:].strip()
+        else:
+            candidate = after_fence
+        # Remove trailing ```
+        end_fence = candidate.rfind('```')
+        if end_fence != -1:
+            candidate = candidate[:end_fence].strip()
+        content = candidate
+
+    # Step 2: Find outermost { … } pair
+    brace_start = content.find('{')
+    brace_end = content.rfind('}')
+    if brace_start != -1 and brace_end != -1 and brace_end > brace_start:
+        content = content[brace_start:brace_end + 1]
+
+    # Step 3: Fix trailing commas before ] or }
     import re
     content = re.sub(r',\s*([\]}])', r'\1', content)
+
+    # Step 4: Parse
     try:
         return json.loads(content)
-    except json.JSONDecodeError:
-        raise
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse JSON: {e}") from e
 
 
 FALLBACK_SETS = [
