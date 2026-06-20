@@ -2,5 +2,6 @@
 *.pyc
 __pycache__/
 .env
+.venv/
 test-results*.json
 node_modules/
