@@ -472,13 +472,128 @@ FALLBACK_SETS = [
 ]
 
 
+# ── Dynamic fallback sets from topic templates ──────────────
+
+COMPANY_NAMES = ["Apex Corp", "NexGen", "Blue Horizon", "Mandala Group", "Prima Solutions",
+    "GlobalLink", "Sinar Abadi", "Citra Nusantara", "Evergreen", "Mitra Sejahtera"]
+PERSON_NAMES = ["Anita Wijaya", "Budi Hartono", "Citra Dewi", "Dimas Prasetyo",
+    "Eka Putri", "Fajar Ramadhan", "Gita Permata", "Hendra Gunawan"]
+CITIES = ["Jakarta", "Surabaya", "Bandung", "Yogyakarta", "Medan", "Makassar", "Semarang"]
+STREETS = ["Jl. Sudirman No. 45", "Jl. Gatot Subroto No. 120", "Jl. Thamrin Kav. 28",
+    "Jl. A. Yani No. 67", "Jl. Diponegoro No. 15"]
+PRICES = ["Rp 150,000", "Rp 250,000", "Rp 500,000", "Rp 75,000", "Rp 1,200,000"]
+MONTHS_DAY = [("January", 15), ("February", 20), ("March", 10), ("April", 5),
+    ("May", 18), ("June", 22), ("July", 12), ("August", 8), ("September", 25),
+    ("October", 14), ("November", 3), ("December", 19)]
+
+
+def _p(pid, title, text):
+    return {"id": pid, "title": title, "text": text}
+
+
+def _q(qid, pid, stem, options, correct, explanation):
+    return {"id": qid, "passage_id": pid, "stem": stem,
+            "options": options, "correct_answer": correct, "explanation": explanation}
+
+
+def _build_topic_set(topic, idx):
+    """Generate a fallback test set from a topic description."""
+    mon, day = MONTHS_DAY[idx % len(MONTHS_DAY)]
+    co = COMPANY_NAMES[idx % len(COMPANY_NAMES)]
+    co2 = COMPANY_NAMES[(idx + 3) % len(COMPANY_NAMES)]
+    person = PERSON_NAMES[idx % len(PERSON_NAMES)]
+    person2 = PERSON_NAMES[(idx + 4) % len(PERSON_NAMES)]
+    city = CITIES[idx % len(CITIES)]
+    street = STREETS[idx % len(STREETS)]
+    price = PRICES[idx % len(PRICES)]
+
+    p1_title = f"{co} Announcement"
+    p1_text = (
+        f"To: All Staff\nFrom: {person}, HR Manager\nSubject: {topic}\n\n"
+        f"Dear Team,\n\nWe are pleased to announce that effective {mon} {day}, "
+        f"{co} will implement new policies regarding {topic.lower()}.\n\n"
+        f"All employees are requested to read the updated guidelines posted on the company portal. "
+        f"A training session will be held on {mon} {day + 1} at 10:00 AM in the main conference room.\n\n"
+        f"For questions, please contact {person2} at extension 4502.\n\nBest regards,\n{person}"
+    )
+
+    p2_title = f"{co2} Services"
+    p2_text = (
+        f"Welcome to {co2}! We are proud to offer our new service package designed to meet your needs.\n\n"
+        f"Our Services:\n- Professional consultation\n- Customized solutions\n- 24/7 customer support\n"
+        f"- Fast and reliable delivery\n- Satisfaction guaranteed\n\n"
+        f"Special introductory offer: {price} for the first month! "
+        f"Visit our office at {street}, {city} or call 021-555-{1000 + idx}.\n\n"
+        f"Open Monday to Friday, 8:00 AM to 6:00 PM."
+    )
+
+    p3_title = f"Event: {city} Workshop"
+    p3_text = (
+        f"Dear Colleagues,\n\n{co} is hosting a professional development workshop on {mon} {day + 10} "
+        f"at the {city} Convention Center.\n\nSchedule:\n"
+        f"- 08:30: Registration and coffee\n- 09:00: Opening remarks by {person}\n"
+        f"- 10:30: Breakout sessions\n- 12:00: Networking lunch\n- 13:30: Panel discussion\n"
+        f"- 15:00: Closing ceremony\n\nPlease RSVP by {mon} {day - 2 if day > 2 else 3} to the HR department. "
+        f"Transportation will be provided from the main office.\n\nLooking forward to your participation!"
+    )
+
+    passages = [_p(1, p1_title, p1_text), _p(2, p2_title, p2_text), _p(3, p3_title, p3_text)]
+
+    questions = [
+        _q(1, 1, f"What is the main purpose of this announcement?",
+           ["A. To introduce a new product", "B. To announce new company policies",
+            "C. To invite employees to a workshop", "D. To report quarterly results"], "B",
+           f"The email announces new policies regarding {topic.lower()}."),
+        _q(2, 1, f"When will the training session take place?",
+           [f"A. {mon} {day}", f"B. {mon} {day + 1}", f"C. {mon} {day + 10}", f"D. {mon} {day - 1}"], "B",
+           f"The training session will be held on {mon} {day + 1} at 10:00 AM."),
+        _q(3, 1, "Who should employees contact for questions?",
+           ["A. The IT department", f"B. {person2}", "C. The finance team",
+            "D. The marketing director"], "B",
+           f"Employees can contact {person2} at extension 4502."),
+        _q(4, 2, f"What service does {co2} offer?",
+           [f"A. {topic} services", "B. Financial consulting", "C. Legal advice",
+            "D. Construction services"], "A",
+           f"{co2} offers professional {topic.lower()} services."),
+        _q(5, 2, f"What is the special introductory offer?",
+           [f"A. {price} for the first month", "B. Free consultation",
+            "C. 50% discount", "D. Lifetime membership"], "A",
+           f"The special offer is {price} for the first month."),
+        _q(6, 2, f"Where is the office located?",
+           [f"A. {street}, {city}", "B. Jl. Merdeka No. 10", "C. Plaza Indonesia",
+            "D. Grand Indonesia"], "A",
+           f"The office is at {street}, {city}."),
+        _q(7, 3, f"What is the main purpose of the workshop?",
+           ["A. Professional development", "B. Product launch",
+            "C. Annual celebration", "D. Team building"], "A",
+           "The workshop focuses on professional development."),
+        _q(8, 3, f"What time does the opening remarks start?",
+           ["A. 08:30", "B. 09:00", "C. 10:30", "D. 12:00"], "B",
+           "Opening remarks begin at 09:00."),
+        _q(9, 3, f"What should participants do by the RSVP deadline?",
+           [f"A. Submit a report", "B. Confirm attendance to HR",
+            "C. Pay the registration fee", "D. Book their own transport"], "B",
+           "Participants should RSVP to the HR department."),
+        _q(10, 3, f"What will be provided for transportation?",
+           ["A. Reimbursement for taxi fares", "B. A bus from the main office",
+            "C. Parking vouchers", "D. Rental car service"], "B",
+           "Transportation will be provided from the main office."),
+    ]
+    return passages, questions
+
+
+# Build many varied fallback sets from TOPIC_POOL
+MORE_FALLBACK_SETS = [_build_topic_set(t, i) for i, t in enumerate(TOPIC_POOL[:15])]
+FALLBACK_SETS = FALLBACK_SETS + MORE_FALLBACK_SETS
+
+
 def generate_test_via_llm(difficulty, seed, topic):
     prompt = TEST_GENERATION_PROMPT.format(difficulty=difficulty, seed=seed, topic=topic)
     response = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "system", "content": "You are a TOEIC test generator. Return ONLY valid JSON."}, {"role": "user", "content": prompt}],
         temperature=TEMPERATURE,
-        max_tokens=3000,
+        max_tokens=4096,
         tools=TOOLS,
         tool_choice="none",
     )
