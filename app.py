@@ -831,6 +831,7 @@ def submit_test():
     answer_key = {q['id']: q['correct_answer'] for q in stored_questions}
     explanations = {q['id']: q.get('explanation', '') for q in stored_questions}
     stems = {q['id']: q['stem'] for q in stored_questions}
+    passage_ids = {q['id']: q['passage_id'] for q in stored_questions}
 
     user_map = {a.get('question_id'): a.get('answer', '') for a in user_answers}
     total = len(stored_questions)
@@ -846,6 +847,7 @@ def submit_test():
             correct += 1
         results.append({
             'question_id': qid,
+            'passage_id': passage_ids.get(qid),
             'stem': stems[qid],
             'user_answer': ua,
             'correct_answer': ca,
